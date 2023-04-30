@@ -178,24 +178,41 @@ pkgs.runCommand "bazel-nixpkgs-cc-toolchain"
     )
     CXX_FLAGS=(
       -x ${ccLang}
-      -std=c++0x
+      -std=c++20
     )
-    LINK_FLAGS=(
-      $(
-        if [[ -x ${cc}/bin/ld.gold ]]; then echo -fuse-ld=gold; fi
-        add_linker_option_if_supported -Wl,-no-as-needed -no-as-needed
-        add_linker_option_if_supported -Wl,-z,relro,-z,now -z
-      )
-      ${
+
+    # Check if ld.lld exists and is executable
+    if [[ -x ${cc}/bin/ld.lld ]]; then
+      linker_option_fuse_ld="-fuse-ld=lld"
+    elif [[ -x ${cc}/bin/ld.gold ]]; then
+      linker_option_fuse_ld="-fuse-ld=gold"
+    else
+      linker_option_fuse_ld=""
+    fi
+
+    # Add linker options if supported
+    linker_option_no_as_needed=$(add_linker_option_if_supported -Wl,-no-as-needed -no-as-needed)
+    linker_option_z_relro_now=$(add_linker_option_if_supported -Wl,-z,relro,-z,now -z)
+
+    # Set linker flags based on the platform
+    linker_platform_flags=${
         if pkgs.stdenv.isDarwin
         then "-undefined dynamic_lookup -headerpad_max_install_names"
         else "-B${cc}/bin"
       }
-      $(
-        # Have gcc return the exit code from ld.
-        add_compiler_option_if_supported -pass-exit-codes
-      )
+
+    # Add compiler options if supported
+    compiler_option_pass_exit_codes=$(add_compiler_option_if_supported -pass-exit-codes)
+
+    # Combine all linker flags
+    LINK_FLAGS=(
+      "''${linker_option_fuse_ld}"
+      "''${linker_option_no_as_needed}"
+      "''${linker_option_z_relro_now}"
+      "''${linker_platform_flags}"
+      "''${compiler_option_pass_exit_codes}"
     )
+
     LINK_LIBS=(
       ${
         # Use pkgs.stdenv.isDarwin as a marker instead of cc.isClang because

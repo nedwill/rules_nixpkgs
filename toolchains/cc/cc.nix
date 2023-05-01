@@ -137,16 +137,26 @@ pkgs.runCommand "bazel-nixpkgs-cc-toolchain"
         | tr '\n' '\0' \
         | xargs -0 -r realpath -ms
     }
+    get_resource_share_dir() {
+      local resource_dir=$($cc --print-resource-dir)
+      if [[ -d $resource_dir/share ]]; then
+        printf '%s\n' "$resource_dir/share"
+      fi
+    }
+
     CXX_BUILTIN_INCLUDE_DIRECTORIES=($({
       include_dirs_for c
       include_dirs_for c++
       if is_compiler_option_supported -fno-canonical-system-headers; then
         include_dirs_for c -fno-canonical-system-headers
-        include_dirs_for c++ -std=c++0x -fno-canonical-system-headers
+        include_dirs_for c++ -std=c++20 -fno-canonical-system-headers
       elif is_compiler_option_supported -no-canonical-prefixes; then
         include_dirs_for c -no-canonical-prefixes
-        include_dirs_for c++ -std=c++0x -no-canonical-prefixes
+        include_dirs_for c++ -std=c++20 -no-canonical-prefixes
       fi
+
+      # Add the resource directory to support sanitizer ignorelists.
+      get_resource_share_dir
     } 2>&1 | sort -u))
     unset IFS
 
